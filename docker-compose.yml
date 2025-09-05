@@ -1,32 +1,104 @@
-version: "3.9"
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: practice-postgres
+    environment:
+      POSTGRES_DB: practice
+      POSTGRES_USER: practice
+      POSTGRES_PASSWORD: practice
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U practice -d practice"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: practice-rabbitmq
+    ports: ["5672:5672","15672:15672"]
+    healthcheck:
+      test: ["CMD","rabbitmq-diagnostics","ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   auth-service:
     build: ./auth-service
     container_name: auth-service
     ports: ["8081:8081"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/practice
+      SPRING_DATASOURCE_USERNAME: practice
+      SPRING_DATASOURCE_PASSWORD: practice
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
 
   catalog-service:
     build: ./catalog-service
     container_name: catalog-service
     ports: ["8082:8082"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/practice
+      SPRING_DATASOURCE_USERNAME: practice
+      SPRING_DATASOURCE_PASSWORD: practice
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
 
   inventory-service:
     build: ./inventory-service
     container_name: inventory-service
     ports: ["8083:8083"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/practice
+      SPRING_DATASOURCE_USERNAME: practice
+      SPRING_DATASOURCE_PASSWORD: practice
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
 
   notification-service:
     build: ./notification-service
     container_name: notification-service
     ports: ["8084:8084"]
+    environment:
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    depends_on:
+      rabbitmq: { condition: service_healthy }
 
   order-service:
     build: ./order-service
     container_name: order-service
     ports: ["8085:8085"]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/practice
+      SPRING_DATASOURCE_USERNAME: practice
+      SPRING_DATASOURCE_PASSWORD: practice
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
 
   payment-mock:
     build: ./payment-mock
     container_name: payment-mock
     ports: ["8086:8086"]
+
+volumes:
+  pgdata:
