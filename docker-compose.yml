@@ -9,6 +9,7 @@ services:
     ports: ["5432:5432"]
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro   # ← добавить
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U practice -d practice"]
       interval: 5s
@@ -18,12 +19,18 @@ services:
   rabbitmq:
     image: rabbitmq:3.13-management
     container_name: practice-rabbitmq
-    ports: ["5672:5672","15672:15672"]
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: practice
+      RABBITMQ_DEFAULT_PASS: practice
     healthcheck:
-      test: ["CMD","rabbitmq-diagnostics","ping"]
+      test: [ "CMD-SHELL", "rabbitmq-diagnostics -q ping" ]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 30
+      start_period: 10s
 
   auth-service:
     build: ./auth-service
@@ -77,13 +84,17 @@ services:
     environment:
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: practice
+      SPRING_RABBITMQ_PASSWORD: practice
     depends_on:
       rabbitmq: { condition: service_healthy }
 
   order-service:
-    build: ./order-service
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
     container_name: order-service
-    ports: ["8085:8085"]
+    ports: [ "8085:8085" ]
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/practice
       SPRING_DATASOURCE_USERNAME: practice
@@ -91,6 +102,8 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_RABBITMQ_HOST: rabbitmq
       SPRING_RABBITMQ_PORT: 5672
+      SPRING_RABBITMQ_USERNAME: practice
+      SPRING_RABBITMQ_PASSWORD: practice
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
