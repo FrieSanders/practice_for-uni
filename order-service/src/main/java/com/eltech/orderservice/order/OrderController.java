@@ -1,35 +1,38 @@
 package com.eltech.orderservice.order;
 
-import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/orders")
 public class OrderController {
 
+    private final OrderFlow flow;
     private final OrderRepository repo;
-    private final OrderProducer producer;
 
-    public OrderController(OrderRepository repo, OrderProducer producer) {
+    public OrderController(OrderFlow flow, OrderRepository repo) {
+        this.flow = flow;
         this.repo = repo;
-        this.producer = producer;
+    }
+
+    @PostMapping
+    public OrderEntity create(@RequestParam Long userId,
+                              @RequestParam Long productId,
+                              @RequestParam int quantity) {
+        return flow.create(userId, productId, quantity);
     }
 
     @GetMapping
-    List<OrderEntity> all() {
-        return repo.findAll();
+    public List<OrderEntity> list(@RequestParam(required = false) String status) {
+        return (status == null || status.isBlank())
+                ? repo.findAllByOrderByIdDesc()
+                : repo.findByStatusIgnoreCaseOrderByIdDesc(status);
     }
 
-    @GetMapping("/count")
-    long count() {
-        return repo.count();
-    }
-
-    // Тестовый POST, который публикует событие в RabbitMQ
-    @PostMapping("/test")
-    public String publishTest() {
-        OrderEvent ev = new OrderEvent(100L, 1L, 1L, 2);
-        producer.publish(ev);
-        return "published";
+    @GetMapping("/{id}")
+    public ResponseEntity<OrderEntity> get(@PathVariable Long id) {
+        return repo.findById(id).map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

@@ -21,6 +21,10 @@ public class OrderEntity {
     @Column(nullable=false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
+    @Column(nullable=false) private String status = "PENDING";
+    public String getStatus(){ return status; }
+    public void setStatus(String s){ this.status=s; }
+
     public OrderEntity() {}
     public OrderEntity(Long userId, Long productId, int quantity){
         this.userId=userId; this.productId=productId; this.quantity=quantity;
