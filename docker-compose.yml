@@ -127,6 +127,8 @@ services:
       INVENTORY_URL: http://inventory-service:8083
       PAYMENT_URL: http://payment-mock:8086
       NOTIFY_URL: http://notification-service:8084
+      CATALOG_URL: http://catalog-service:8082
+      SPRING_PROFILES_ACTIVE: prod
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }

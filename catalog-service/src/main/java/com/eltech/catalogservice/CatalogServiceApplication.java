@@ -1,14 +1,10 @@
 package com.eltech.catalogservice;
-
 import com.eltech.catalogservice.product.Product;
 import com.eltech.catalogservice.product.ProductRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @SpringBootApplication
 public class CatalogServiceApplication {
@@ -27,21 +23,3 @@ public class CatalogServiceApplication {
     }
 }
 
-@RestController
-class ProductController {
-    private final ProductRepository repo;
-
-    ProductController(ProductRepository repo) {
-        this.repo = repo;
-    }
-
-    @GetMapping("/products")
-    List<Product> all() {
-        return repo.findAll();
-    }
-
-    @GetMapping("/products/count")
-    long count() {
-        return repo.count();
-    }
-}
