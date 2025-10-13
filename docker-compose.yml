@@ -148,5 +148,15 @@ services:
       timeout: 3s
       retries: 30
       start_period: 10s
+  ui:
+    build: ./ui
+    container_name: eltech-ui
+    ports:
+      - "8080:80"
+    depends_on:
+      - order-service
+      - catalog-service
+      - inventory-service
+      - notification-service
 volumes:
   pgdata:
