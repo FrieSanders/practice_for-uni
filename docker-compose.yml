@@ -114,21 +114,23 @@ services:
 
   order-service:
     build: ./order-service
-    ports: ["8085:8085"]
+    ports:
+      - "8085:8085"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/practice
-      SPRING_DATASOURCE_USERNAME: practice
-      SPRING_DATASOURCE_PASSWORD: practice
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-      SPRING_RABBITMQ_HOST: rabbitmq
-      SPRING_RABBITMQ_PORT: 5672
-      SPRING_RABBITMQ_USERNAME: practice
-      SPRING_RABBITMQ_PASSWORD: practice
-      INVENTORY_URL: http://inventory-service:8083
-      PAYMENT_URL: http://payment-mock:8086
-      NOTIFY_URL: http://notification-service:8084
-      CATALOG_URL: http://catalog-service:8082
-      SPRING_PROFILES_ACTIVE: prod
+      - FIREBASE_CREDENTIALS=/secrets/firebase.json
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/practice
+      - SPRING_DATASOURCE_USERNAME=practice
+      - SPRING_DATASOURCE_PASSWORD=practice
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_PORT=5672
+      - SPRING_RABBITMQ_USERNAME=practice
+      - SPRING_RABBITMQ_PASSWORD=practice
+      - INVENTORY_URL=http://inventory-service:8083
+      - PAYMENT_URL=http://payment-mock:8086
+      - NOTIFY_URL=http://notification-service:8084
+      - CATALOG_URL=http://catalog-service:8082
+      - SPRING_PROFILES_ACTIVE=prod
     depends_on:
       postgres: { condition: service_healthy }
       rabbitmq: { condition: service_healthy }
@@ -138,6 +140,8 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
+    volumes:
+      - ./secrets/firebase.json:/secrets/firebase.json:ro
 
   payment-mock:
     build: ./payment-mock

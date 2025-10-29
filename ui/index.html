@@ -2,78 +2,334 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>ElTech Shop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ElTech Shop — MVP UI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body{font-family:system-ui;margin:24px;display:grid;gap:24px}
-    section{border:1px solid #ddd;border-radius:8px;padding:16px}
-    input,button{padding:6px 10px;margin:2px}
-    pre{background:#f7f7f7;padding:10px;border-radius:6px;max-height:280px;overflow:auto}
+    .backdrop { background: rgba(0,0,0,0.45); }
   </style>
 </head>
-<body>
-<h1>ElTech Shop</h1>
+<body class="bg-slate-50 text-slate-900">
+  <!-- Header -->
+  <header class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <h1 class="text-xl font-semibold">ElTech Shop</h1>
+      <div class="flex items-center gap-3">
+        <label class="text-sm">userId</label>
+        <input id="userId" type="number" value="1" class="w-24 rounded border border-slate-300 px-2 py-1 text-sm" />
+        <button id="ordersBtn" class="rounded px-3 py-2 border border-slate-300 hover:bg-slate-100 text-sm">Заказы</button>
+        <button id="cartBtn" class="relative rounded px-3 py-2 bg-slate-900 text-white text-sm">
+          Корзина
+          <span id="cartCount" class="absolute -top-1 -right-1 text-[11px] bg-emerald-500 text-white rounded-full px-1.5 py-0.5">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
 
-<section>
-  <h3>Каталог</h3>
-  <button onclick="loadProducts()">Загрузить товары</button>
-  <pre id="products"></pre>
-</section>
+  <!-- Main -->
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <!-- Status row -->
+    <div id="statusRow" class="hidden mb-4">
+      <div id="statusBox" class="rounded border px-3 py-2 text-sm"></div>
+    </div>
 
-<section>
-  <h3>Создать заказ</h3>
-  userId <input id="userId" type="number" value="1">
-  productId <input id="productId" type="number" value="1">
-  quantity <input id="qty" type="number" value="2">
-  <button onclick="createOrder()">Создать</button>
-  <pre id="created"></pre>
-</section>
+    <!-- Products -->
+    <section>
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-medium">Каталог</h2>
+        <button id="reloadBtn" class="text-sm px-3 py-1.5 border rounded hover:bg-slate-100">Обновить</button>
+      </div>
+      <div id="productsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
+      <div id="productsEmpty" class="text-sm text-slate-500 hidden">Товаров нет.</div>
+      <div id="productsLoading" class="text-sm text-slate-500">Загрузка…</div>
+    </section>
+  </main>
 
-<section>
-  <h3>Список заказов</h3>
-  <button onclick="loadOrders()">Обновить</button>
-  <pre id="orders"></pre>
-</section>
+  <!-- Cart Drawer -->
+  <div id="cartDrawer" class="fixed inset-0 hidden">
+    <div class="absolute inset-0 backdrop" data-close="drawer"></div>
+    <aside class="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl border-l border-slate-200 flex flex-col">
+      <div class="p-4 border-b flex items-center justify-between">
+        <h3 class="font-medium">Корзина</h3>
+        <button class="text-slate-500 hover:text-slate-900" data-close="drawer">✕</button>
+      </div>
+      <div id="cartList" class="flex-1 overflow-y-auto divide-y"></div>
+      <div class="p-4 border-t space-y-3">
+        <div class="flex items-center justify-between text-sm">
+          <span>Итого</span>
+          <span id="cartTotal" class="font-semibold">0 ₽</span>
+        </div>
+        <button id="checkoutBtn" class="w-full py-2 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">Оформить</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Orders Modal -->
+  <div id="ordersModal" class="fixed inset-0 hidden">
+    <div class="absolute inset-0 backdrop" data-close="orders"></div>
+    <div class="absolute inset-0 flex items-center justify-center p-4">
+      <div class="w-full max-w-4xl bg-white rounded-lg shadow-xl border border-slate-200">
+        <div class="p-4 border-b flex items-center justify-between">
+          <h3 class="font-medium">Заказы</h3>
+          <button class="text-slate-500 hover:text-slate-900" data-close="orders">✕</button>
+        </div>
+        <div class="p-4">
+          <div id="ordersLoading" class="text-sm text-slate-500">Загрузка…</div>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm hidden" id="ordersTable">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="text-left p-2">ID</th>
+                  <th class="text-left p-2">User</th>
+                  <th class="text-left p-2">Product</th>
+                  <th class="text-left p-2">Qty</th>
+                  <th class="text-left p-2">Status</th>
+                  <th class="text-left p-2">Created</th>
+                </tr>
+              </thead>
+              <tbody id="ordersBody"></tbody>
+            </table>
+          </div>
+          <div id="ordersEmpty" class="text-sm text-slate-500 hidden">Заказов нет.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-4 right-4 hidden">
+    <div id="toastBox" class="rounded bg-slate-900 text-white px-3 py-2 text-sm shadow"></div>
+  </div>
 
 <script>
-  // Все запросы идут на сам UI (Nginx), который проксирует их внутрь сети compose
+  // API endpoints
   const API = {
     catalog: '/api/catalog',
     order:   '/api/order'
   };
 
-  async function loadProducts(){
-    try{
-      const r = await fetch(`${API.catalog}/products`);
-      if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-      products.textContent = JSON.stringify(await r.json(), null, 2);
-    }catch(e){
-      products.textContent = 'Ошибка: ' + e.message;
+  // Store
+  const store = {
+    items: [], // [{id, name, price, qty}]
+  };
+  const fmtPrice = v => new Intl.NumberFormat('ru-RU', {style:'currency', currency:'RUB'}).format(v);
+
+  // DOM refs
+  const productsGrid   = document.getElementById('productsGrid');
+  const productsEmpty  = document.getElementById('productsEmpty');
+  const productsLoading= document.getElementById('productsLoading');
+  const cartDrawer     = document.getElementById('cartDrawer');
+  const cartList       = document.getElementById('cartList');
+  const cartCount      = document.getElementById('cartCount');
+  const cartTotal      = document.getElementById('cartTotal');
+  const checkoutBtn    = document.getElementById('checkoutBtn');
+  const ordersModal    = document.getElementById('ordersModal');
+  const ordersTable    = document.getElementById('ordersTable');
+  const ordersBody     = document.getElementById('ordersBody');
+  const ordersLoading  = document.getElementById('ordersLoading');
+  const ordersEmpty    = document.getElementById('ordersEmpty');
+  const toast          = document.getElementById('toast');
+  const toastBox       = document.getElementById('toastBox');
+  const statusRow      = document.getElementById('statusRow');
+  const statusBox      = document.getElementById('statusBox');
+  const userIdInput    = document.getElementById('userId');
+
+  // Helpers
+  function showToast(msg) {
+    toastBox.textContent = msg;
+    toast.classList.remove('hidden');
+    setTimeout(() => toast.classList.add('hidden'), 2500);
+  }
+  async function fetchJSON(url, opts = {}, timeoutMs = 6000) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...opts, signal: ctrl.signal });
+      if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+      const ct = res.headers.get('content-type') || '';
+      return ct.includes('application/json') ? res.json() : res.text();
+    } finally { clearTimeout(t); }
+  }
+  function setStatus(msg, ok=true) {
+    statusRow.classList.remove('hidden');
+    statusBox.className = 'rounded px-3 py-2 text-sm ' + (ok ? 'border border-emerald-200 bg-emerald-50 text-emerald-800' : 'border border-rose-200 bg-rose-50 text-rose-800');
+    statusBox.textContent = msg;
+    setTimeout(()=>statusRow.classList.add('hidden'), 2500);
+  }
+
+  // Products
+  async function loadProducts() {
+    productsLoading.classList.remove('hidden');
+    productsEmpty.classList.add('hidden');
+    productsGrid.innerHTML = '';
+    try {
+      const data = await fetchJSON(API.catalog + '/products');
+      if (!Array.isArray(data) || data.length === 0) {
+        productsEmpty.classList.remove('hidden');
+        return;
+      }
+      for (const p of data) {
+        const card = document.createElement('div');
+        card.className = 'bg-white border rounded-xl p-4 shadow-sm hover:shadow transition';
+        card.innerHTML = `
+          <div class="text-base font-medium">${p.name || 'Товар ' + p.id}</div>
+          <div class="text-sm text-slate-500 mb-3">ID: ${p.id ?? '-'}</div>
+          <div class="text-lg font-semibold mb-3">${fmtPrice(p.price ?? 0)}</div>
+          <div class="flex items-center gap-2">
+            <input type="number" min="1" value="1" class="w-20 rounded border border-slate-300 px-2 py-1 text-sm qty"/>
+            <button class="px-3 py-1.5 rounded bg-slate-900 text-white text-sm addBtn">В корзину</button>
+          </div>
+        `;
+        const qty = card.querySelector('.qty');
+        const btn = card.querySelector('.addBtn');
+        btn.addEventListener('click', () => addToCart({ id: p.id, name: p.name, price: p.price, qty: Number(qty.value || 1) }));
+        productsGrid.appendChild(card);
+      }
+    } catch (e) {
+      showToast('Ошибка каталога: ' + e.message);
+      productsEmpty.classList.remove('hidden');
+    } finally {
+      productsLoading.classList.add('hidden');
     }
   }
 
-  async function createOrder(){
-    const u = userId.value || 1;
-    const p = productId.value || 1;
-    const q = qty.value || 1;
-    try{
-      const r = await fetch(`${API.order}/orders?userId=${u}&productId=${p}&quantity=${q}`, { method:'POST' });
-      if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-      created.textContent = JSON.stringify(await r.json(), null, 2);
-      loadOrders();
-    }catch(e){
-      created.textContent = 'Ошибка: ' + e.message;
+  // Cart
+  function addToCart(item) {
+    const idx = store.items.findIndex(x => x.id === item.id);
+    if (idx >= 0) store.items[idx].qty += item.qty;
+    else store.items.push({ ...item });
+    renderCart();
+    showCart(true);
+  }
+  function changeQty(id, delta) {
+    const it = store.items.find(x=>x.id===id);
+    if (!it) return;
+    it.qty = Math.max(1, it.qty + delta);
+    renderCart();
+  }
+  function removeItem(id) {
+    store.items = store.items.filter(x=>x.id!==id);
+    renderCart();
+  }
+  function renderCart() {
+    cartList.innerHTML = '';
+    if (store.items.length === 0) {
+      cartList.innerHTML = '<div class="p-4 text-sm text-slate-500">Корзина пуста.</div>';
+      checkoutBtn.disabled = true;
+    } else {
+      checkoutBtn.disabled = false;
+      for (const it of store.items) {
+        const row = document.createElement('div');
+        row.className = 'p-4 flex items-center justify-between gap-3';
+        row.innerHTML = `
+          <div>
+            <div class="font-medium">${it.name}</div>
+            <div class="text-xs text-slate-500">ID: ${it.id}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button class="w-7 h-7 border rounded" data-act="dec">−</button>
+            <div class="w-8 text-center">${it.qty}</div>
+            <button class="w-7 h-7 border rounded" data-act="inc">+</button>
+            <div class="w-24 text-right font-medium">${fmtPrice((it.price||0) * it.qty)}</div>
+            <button class="ml-2 text-rose-600" data-act="del">Удалить</button>
+          </div>
+        `;
+        row.querySelector('[data-act="dec"]').onclick = () => changeQty(it.id, -1);
+        row.querySelector('[data-act="inc"]').onclick = () => changeQty(it.id, +1);
+        row.querySelector('[data-act="del"]').onclick = () => removeItem(it.id);
+        cartList.appendChild(row);
+      }
+    }
+    const total = store.items.reduce((s,it)=>s+(it.price||0)*it.qty,0);
+    cartTotal.textContent = fmtPrice(total);
+    cartCount.textContent = String(store.items.reduce((s,it)=>s+it.qty,0));
+  }
+  function showCart(show) {
+    cartDrawer.classList.toggle('hidden', !show);
+  }
+
+  // Checkout: один заказ на каждую позицию корзины
+  async function checkout() {
+    const userId = Number(userIdInput.value || 1);
+    if (!store.items.length) return;
+    checkoutBtn.disabled = true;
+    try {
+      for (const it of store.items) {
+        const url = `${API.order}/orders?userId=${encodeURIComponent(userId)}&productId=${encodeURIComponent(it.id)}&quantity=${encodeURIComponent(it.qty)}`;
+        await fetchJSON(url, { method: 'POST' }, 8000);
+      }
+      setStatus('Заказ(ы) создан(ы)');
+      store.items = [];
+      renderCart();
+      await openOrders();
+    } catch (e) {
+      setStatus('Не удалось оформить: ' + e.message, false);
+    } finally {
+      checkoutBtn.disabled = false;
     }
   }
 
-  async function loadOrders(){
-    try{
-      const r = await fetch(`${API.order}/orders?page=0&size=10`);
-      if(!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-      orders.textContent = JSON.stringify(await r.json(), null, 2);
-    }catch(e){
-      orders.textContent = 'Ошибка: ' + e.message;
+  // Orders
+  async function openOrders() {
+    ordersLoading.classList.remove('hidden');
+    ordersTable.classList.add('hidden');
+    ordersEmpty.classList.add('hidden');
+    ordersBody.innerHTML = '';
+    showOrders(true);
+    try {
+      const data = await fetchJSON(API.order + '/orders');
+      if (!Array.isArray(data) || data.length === 0) {
+        ordersEmpty.classList.remove('hidden');
+        return;
+      }
+      for (const o of data) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="p-2">${o.id ?? '-'}</td>
+          <td class="p-2">${o.userId ?? '-'}</td>
+          <td class="p-2">${o.productId ?? '-'}</td>
+          <td class="p-2">${o.quantity ?? '-'}</td>
+          <td class="p-2"><span class="px-2 py-0.5 rounded text-xs ${badgeCls(o.status)}">${o.status || 'UNKNOWN'}</span></td>
+          <td class="p-2">${fmtDate(o.createdAt)}</td>
+        `;
+        ordersBody.appendChild(tr);
+      }
+      ordersTable.classList.remove('hidden');
+    } catch (e) {
+      showToast('Ошибка загрузки заказов: ' + e.message);
+      ordersEmpty.classList.remove('hidden');
+    } finally {
+      ordersLoading.classList.add('hidden');
     }
   }
+  function showOrders(show) { ordersModal.classList.toggle('hidden', !show); }
+  function badgeCls(s) {
+    s = String(s||'').toUpperCase();
+    if (s.includes('FAIL')) return 'bg-rose-100 text-rose-700';
+    if (s.includes('COMPLETE') || s.includes('PAID')) return 'bg-emerald-100 text-emerald-700';
+    if (s.includes('RESERV')) return 'bg-amber-100 text-amber-700';
+    return 'bg-slate-100 text-slate-700';
+  }
+  function fmtDate(iso) {
+    try {
+      return new Date(iso).toLocaleString('ru-RU');
+    } catch { return '-'; }
+  }
+
+  // Events
+  document.getElementById('cartBtn').onclick   = () => showCart(true);
+  document.getElementById('ordersBtn').onclick = openOrders;
+  document.getElementById('reloadBtn').onclick = loadProducts;
+  checkoutBtn.onclick = checkout;
+  document.body.addEventListener('click', (e)=>{
+    const t = e.target;
+    if (t.dataset.close === 'drawer') showCart(false);
+    if (t.dataset.close === 'orders') showOrders(false);
+  });
+
+  // Init
+  loadProducts();
+  renderCart();
 </script>
 </body>
 </html>

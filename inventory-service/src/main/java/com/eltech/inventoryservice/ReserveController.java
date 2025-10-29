@@ -9,7 +9,7 @@ public class ReserveController {
 
     @PostMapping("/reserve")
     public ReserveResp reserve(@RequestBody ReserveReq r) {
-        boolean ok = r.quantity() <= 5; // простое правило
+        boolean ok = r.quantity() <= 5;
         return new ReserveResp(ok);
     }
 }
