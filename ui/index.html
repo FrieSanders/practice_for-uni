@@ -9,8 +9,14 @@
     .backdrop { background: rgba(0,0,0,0.45); }
   </style>
 </head>
+<script type="module" src="/firebase-auth.js"></script>
+<div id="loginBox" class="p-3 border rounded mb-4">
+  <input id="loginEmail" placeholder="email" class="border px-2 py-1 rounded mr-2">
+  <input id="loginPass" type="password" placeholder="password" class="border px-2 py-1 rounded mr-2">
+  <button onclick="auth.signIn(loginEmail.value, loginPass.value)" class="px-3 py-1 border rounded">Войти</button>
+</div>
+<div class="text-sm">Пользователь: <span id="authBadge">Гость</span></div>
 <body class="bg-slate-50 text-slate-900">
-  <!-- Header -->
   <header class="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-slate-200">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
       <h1 class="text-xl font-semibold">ElTech Shop</h1>
@@ -26,14 +32,10 @@
     </div>
   </header>
 
-  <!-- Main -->
   <main class="max-w-6xl mx-auto px-4 py-6">
-    <!-- Status row -->
     <div id="statusRow" class="hidden mb-4">
       <div id="statusBox" class="rounded border px-3 py-2 text-sm"></div>
     </div>
-
-    <!-- Products -->
     <section>
       <div class="flex items-center justify-between mb-3">
         <h2 class="text-lg font-medium">Каталог</h2>
@@ -45,7 +47,6 @@
     </section>
   </main>
 
-  <!-- Cart Drawer -->
   <div id="cartDrawer" class="fixed inset-0 hidden">
     <div class="absolute inset-0 backdrop" data-close="drawer"></div>
     <aside class="absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl border-l border-slate-200 flex flex-col">
@@ -64,7 +65,6 @@
     </aside>
   </div>
 
-  <!-- Orders Modal -->
   <div id="ordersModal" class="fixed inset-0 hidden">
     <div class="absolute inset-0 backdrop" data-close="orders"></div>
     <div class="absolute inset-0 flex items-center justify-center p-4">
@@ -96,25 +96,21 @@
     </div>
   </div>
 
-  <!-- Toast -->
   <div id="toast" class="fixed bottom-4 right-4 hidden">
     <div id="toastBox" class="rounded bg-slate-900 text-white px-3 py-2 text-sm shadow"></div>
   </div>
 
 <script>
-  // API endpoints
   const API = {
     catalog: '/api/catalog',
     order:   '/api/order'
   };
 
-  // Store
   const store = {
     items: [], // [{id, name, price, qty}]
   };
   const fmtPrice = v => new Intl.NumberFormat('ru-RU', {style:'currency', currency:'RUB'}).format(v);
 
-  // DOM refs
   const productsGrid   = document.getElementById('productsGrid');
   const productsEmpty  = document.getElementById('productsEmpty');
   const productsLoading= document.getElementById('productsLoading');
@@ -134,7 +130,6 @@
   const statusBox      = document.getElementById('statusBox');
   const userIdInput    = document.getElementById('userId');
 
-  // Helpers
   function showToast(msg) {
     toastBox.textContent = msg;
     toast.classList.remove('hidden');
@@ -163,7 +158,8 @@
     productsEmpty.classList.add('hidden');
     productsGrid.innerHTML = '';
     try {
-      const data = await fetchJSON(API.catalog + '/products');
+      const res  = await auth.fetch(API.order + '/orders');
+      const data = await res.json();
       if (!Array.isArray(data) || data.length === 0) {
         productsEmpty.classList.remove('hidden');
         return;
@@ -256,7 +252,7 @@
     try {
       for (const it of store.items) {
         const url = `${API.order}/orders?userId=${encodeURIComponent(userId)}&productId=${encodeURIComponent(it.id)}&quantity=${encodeURIComponent(it.qty)}`;
-        await fetchJSON(url, { method: 'POST' }, 8000);
+        await auth.fetch(url, { method: 'POST' });
       }
       setStatus('Заказ(ы) создан(ы)');
       store.items = [];

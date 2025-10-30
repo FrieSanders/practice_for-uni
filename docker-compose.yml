@@ -152,6 +152,7 @@ services:
       timeout: 3s
       retries: 30
       start_period: 10s
+
   ui:
     build: ./ui
     container_name: eltech-ui
