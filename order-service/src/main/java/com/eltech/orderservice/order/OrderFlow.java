@@ -1,84 +1,191 @@
 package com.eltech.orderservice.order;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.List;
+import java.util.Map;
 
 @Service
 public class OrderFlow {
 
-    private final RestClient rc;
+    private static final Logger log = LoggerFactory.getLogger(OrderFlow.class);
+
     private final OrderRepository repo;
+    private final RestTemplate http;
 
+    // Читаем из ENV (compose задаёт CATALOG_URL и т.п.)
+    @Value("${CATALOG_URL:http://catalog-service:8082}")
+    private String catalogBase;
 
-    @Value("${INVENTORY_URL:http://inventory-service:8083}") String inv;
-    @Value("${PAYMENT_URL:http://payment-mock:8086}")       String pay;
-    @Value("${NOTIFY_URL:http://notification-service:8084}") String ntf;
-    @Value("${CATALOG_URL:http://catalog-service:8082}")    String cat;
+    @Value("${INVENTORY_URL:http://inventory-service:8083}")
+    private String inventoryBase;
 
-    public OrderFlow(RestClient.Builder builder, OrderRepository repo) {
-        this.rc = builder.build();
+    @Value("${PAYMENT_URL:http://payment-mock:8086}")
+    private String paymentBase;
+
+    @Value("${NOTIFY_URL:http://notification-service:8084}")
+    private String notifyBase;
+
+    public OrderFlow(OrderRepository repo) {
         this.repo = repo;
+        this.http = new RestTemplate();
     }
 
-    // DTO
-    record ReserveReq(Long productId, int quantity) {}
-    record ReserveResp(boolean reserved) {}
-    record PayReq(Long orderId, long amount) {}
-    record PayResp(boolean authorized) {}
-    record NotifyReq(Long orderId, String status) {}
-    record Product(Long id, String name, Number price) {}   // ← добавили
+    @Transactional
+    public OrderEntity create(String userId, Long productId, int quantity) {
+        log.info("Create order: user={}, productId={}, qty={}", userId, productId, quantity);
 
-    public OrderEntity create(Long userId, Long productId, int qty) {
-        var o = repo.save(new OrderEntity(userId, productId, qty)); // status=PENDING
+        double price = fetchPriceWithFallback(productId);
+        double total = price * quantity;
 
-        // 1) Инвентарь
+        OrderEntity order = new OrderEntity();
+        order.setUserId(userId);
+        order.setProductId(productId);
+        order.setAmount(quantity);
+        order.setPrice(price);
+        order.setTotal(total);
+        order.setStatus("NEW");
+        order = repo.save(order);
+
+        boolean reserved = false;
         try {
-            var r = rc.post().uri(inv + "/reserve")
-                    .body(new ReserveReq(productId, qty))
-                    .retrieve().body(ReserveResp.class);
-            if (r == null || !r.reserved()) {
-                o.setStatus("FAILED_INVENTORY");
-                return repo.save(o);
+            reserveWithFallback(productId, quantity);
+            reserved = true;
+            order.setStatus("RESERVED");
+            repo.save(order);
+
+            payWithFallback(userId, total);
+            order.setStatus("PAID");
+            repo.save(order);
+
+            notifyWithFallback(userId, order.getId(), productId, quantity, total);
+            order.setStatus("NOTIFIED");
+            return repo.save(order);
+
+        } catch (RuntimeException ex) {
+            log.error("Order flow failed, orderId={}: {}", order.getId(), ex.getMessage(), ex);
+            order.setStatus("FAILED");
+            repo.save(order);
+            if (reserved) {
+                try { releaseWithFallback(productId, quantity); }
+                catch (Exception ignore) { log.warn("Release fallback failed: {}", ignore.getMessage()); }
             }
-        } catch (Exception e) {
-            o.setStatus("FAILED_INVENTORY");
-            return repo.save(o);
+            throw ex;
         }
+    }
 
-        // 2) Цена из каталога
-        long unitPrice = 100L; // fallback
-        try {
-            var p = rc.get().uri(cat + "/products/" + productId)
-                    .retrieve().body(Product.class);
-            if (p != null && p.price() != null) {
-                unitPrice = p.price().longValue();
+    // ----------------- Каталог -----------------
+    private double fetchPriceWithFallback(Long productId) {
+        List<String> urls = List.of(
+                catalogBase + "/products/" + productId,
+                catalogBase + "/api/products/" + productId,
+                catalogBase + "/products?id=" + productId
+        );
+        for (String url : urls) {
+            try {
+                log.debug("GET {}", url);
+                ResponseEntity<Map> res = http.getForEntity(url, Map.class);
+                if (res.getStatusCode().is2xxSuccessful() && res.getBody() != null && res.getBody().get("price") != null) {
+                    Object p = res.getBody().get("price");
+                    double price = (p instanceof Number) ? ((Number) p).doubleValue() : Double.parseDouble(String.valueOf(p));
+                    log.info("Price fetched: {} via {}", price, url);
+                    return price;
+                }
+                log.warn("Price not in body via {}: {}", url, res.getBody());
+            } catch (Exception e) {
+                log.warn("Price fetch failed {}: {}", url, e.getMessage());
             }
-        } catch (Exception ignore) { /* оставим fallback */ }
-        long amount = unitPrice * qty;
-
-        // 3) Платёж
-        try {
-            var p = rc.post().uri(pay + "/pay")
-                    .body(new PayReq(o.getId(), amount))
-                    .retrieve().body(PayResp.class);
-            if (p == null || !p.authorized()) {
-                o.setStatus("FAILED_PAYMENT");
-                return repo.save(o);
-            }
-        } catch (Exception e) {
-            o.setStatus("FAILED_PAYMENT");
-            return repo.save(o);
         }
+        throw new IllegalStateException("catalog price not found (all fallbacks failed)");
+    }
 
-        // 4) Уведомление
-        o.setStatus("COMPLETED");
-        repo.save(o);
-        try {
-            rc.post().uri(ntf + "/notify")
-                    .body(new NotifyReq(o.getId(), o.getStatus()))
-                    .retrieve().toBodilessEntity();
-        } catch (Exception ignore) {}
-        return o;
+    // ----------------- Склад -----------------
+    private void reserveWithFallback(Long productId, int qty) {
+        List<String> urls = List.of(
+                inventoryBase + "/stock/reserve?productId=" + productId + "&quantity=" + qty,
+                inventoryBase + "/reserve?productId=" + productId + "&quantity=" + qty
+        );
+        postNoBodyWithFallback("reserve", urls);
+    }
+
+    private void releaseWithFallback(Long productId, int qty) {
+        List<String> urls = List.of(
+                inventoryBase + "/stock/release?productId=" + productId + "&quantity=" + qty,
+                inventoryBase + "/release?productId=" + productId + "&quantity=" + qty
+        );
+        postNoBodyWithFallback("release", urls);
+    }
+
+    // ----------------- Оплата -----------------
+    private void payWithFallback(String userId, double amount) {
+        List<String> urls = List.of(
+                paymentBase + "/pay",
+                paymentBase + "/api/pay",
+                paymentBase + "/payment"
+        );
+        Map<String, Object> body = Map.of("userId", userId, "amount", amount);
+        postJsonWithFallback("payment", urls, body);
+    }
+
+    // ----------------- Уведомление -----------------
+    private void notifyWithFallback(String userId, Long orderId, Long productId, int qty, double total) {
+        List<String> urls = List.of(
+                notifyBase + "/notify",
+                notifyBase + "/api/notify",
+                notifyBase + "/send"
+        );
+        Map<String, Object> body = Map.of(
+                "userId", userId,
+                "orderId", orderId,
+                "productId", productId,
+                "quantity", qty,
+                "total", total
+        );
+        postJsonWithFallback("notify", urls, body);
+    }
+
+    // ----------------- Общие помощники -----------------
+    private void postNoBodyWithFallback(String tag, List<String> urls) {
+        for (String url : urls) {
+            try {
+                log.debug("POST {} {}", tag, url);
+                ResponseEntity<Void> res = http.postForEntity(url, HttpEntity.EMPTY, Void.class);
+                if (res.getStatusCode().is2xxSuccessful()) {
+                    log.info("{} OK via {}", tag, url);
+                    return;
+                }
+                log.warn("{} non-2xx via {}: {}", tag, url, res.getStatusCode());
+            } catch (RestClientException e) {
+                log.warn("{} failed {}: {}", tag, url, e.getMessage());
+            }
+        }
+        throw new IllegalStateException(tag + " failed (all fallbacks)");
+    }
+
+    private void postJsonWithFallback(String tag, List<String> urls, Map<String, Object> payload) {
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, Object>> req = new HttpEntity<>(payload, h);
+        for (String url : urls) {
+            try {
+                log.debug("POST {} {}", tag, url);
+                ResponseEntity<Map> res = http.postForEntity(url, req, Map.class);
+                if (res.getStatusCode().is2xxSuccessful()) {
+                    log.info("{} OK via {} body={}", tag, url, res.getBody());
+                    return;
+                }
+                log.warn("{} non-2xx via {}: {} body={}", tag, url, res.getStatusCode(), res.getBody());
+            } catch (RestClientException e) {
+                log.warn("{} failed {}: {}", tag, url, e.getMessage());
+            }
+        }
+        throw new IllegalStateException(tag + " failed (all fallbacks)");
     }
 }

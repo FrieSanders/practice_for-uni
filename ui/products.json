@@ -1,0 +1,50 @@
+[
+  {
+    "id": "product1",
+    "name": "Смартфон XYZ",
+    "price": 29999,
+    "image": "images/products/product1.png"
+  },
+  {
+    "id": "product2",
+    "name": "Ноутбук ABC",
+    "price": 59999,
+    "image": "images/products/product1.png"
+  },
+  {
+    "id": "product3",
+    "name": "Блендер ABC",
+    "price": 59999,
+    "image": "images/products/product1.png"
+  },
+  {
+    "id": "product4",
+    "name": "Миксер ABC",
+    "price": 59999,
+    "image": "images/products/product1.png"
+  },
+  {
+    "id": "product5",
+    "name": "Лампа ABC",
+    "price": 59999,
+    "image": "images/products/product1.png"
+  },
+  {
+    "id": "product6",
+    "name": "Пылесос ABC",
+    "price": 59999,
+    "image": "images/products/product1.png"
+  },
+  {
+    "id": "product6",
+    "name": "Игрушка ABC",
+    "price": 12999,
+    "image": "images/products/product1.png"
+  },
+  {
+    "id": "product6",
+    "name": "Чайник ABC",
+    "price": 2999,
+    "image": "images/products/product1.png"
+  }
+]

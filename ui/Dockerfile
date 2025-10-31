@@ -1,6 +1,10 @@
 FROM nginx:alpine
 
+# убираем дефолтный дефолт
+RUN rm -f /etc/nginx/conf.d/default.conf
+
+# единственный конфиг nginx (содержит http{} и server{})
 COPY nginx.conf /etc/nginx/nginx.conf
 
-COPY index.html        /usr/share/nginx/html/index.html
-COPY firebase-auth.js  /usr/share/nginx/html/firebase-auth.js
+# статика
+COPY . /usr/share/nginx/html/
